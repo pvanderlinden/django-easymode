@@ -1,3 +1,4 @@
+import logging
 from django.forms.models import ModelFormMetaclass
 from django.forms.util import ErrorList, ValidationError
 from django.utils.datastructures import SortedDict
@@ -6,6 +7,19 @@ from django.utils.translation import get_language
 from easymode.i18n.admin.widgets import WidgetWrapper
 from easymode.utils.languagecode import get_real_fieldname
 
+FREAK_ACCIDENT = """\
+This is very strange, it seems that %s does not have
+any attribute named %s. It should have, because it is supposed to
+be an internationalized model.
+
+make note of the following, which are the attributes on %s and if
+you are in the middle of an exception, also add the stack trace and
+send it to easymode@librelist.com:
+
+%s
+
+For debugging purposes, we will ignore this very very strange twist of faith
+and continue like nothing happened."""
 
 __all__ = ('make_localised_form',)
 
@@ -138,8 +152,12 @@ def make_localised_form(model, form, exclude=None):
     
     for localized_field in model.localized_fields:
         # get the descriptor, which contains the form field
-        default_field_descriptor = getattr(model, localized_field)
+        default_field_descriptor = getattr(model, localized_field, None)
         
+        if default_field_descriptor is None:
+            logging.error(FREAK_ACCIDENT % (model, localized_field, model, dir(model)))
+            continue
+            
         # See if we've got overridden fields in a custom form.
         if hasattr(form, 'declared_fields'):
             form_field = form.declared_fields.get(
